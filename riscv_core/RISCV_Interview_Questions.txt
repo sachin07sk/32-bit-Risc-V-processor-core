@@ -1,0 +1,560 @@
+============================================================
+  RISC-V RV32I PROCESSOR — COMPLETE INTERVIEW QUESTION BANK
+  Prepared for: Saravana Kumar T J A
+  Project: 32-bit RISC-V Pipelined Processor Core
+  Tool: QuestaSim | Language: Verilog
+============================================================
+
+
+════════════════════════════════════════════════════════════
+SECTION 1 — BASIC ARCHITECTURE QUESTIONS
+(Asked in every interview — must know perfectly)
+════════════════════════════════════════════════════════════
+
+Q1. What is RISC-V?
+A:  RISC-V is an open-source Instruction Set Architecture (ISA) based on
+    Reduced Instruction Set Computer principles. Unlike ARM or x86 it is
+    royalty-free and openly available. RV32I is the base 32-bit integer
+    instruction set — the simplest and most fundamental variant.
+
+Q2. How many pipeline stages does your processor have? Name them.
+A:  5 stages:
+    1. IF  — Instruction Fetch: reads instruction from memory using PC
+    2. ID  — Instruction Decode: decodes opcode, reads registers, generates control signals
+    3. EX  — Execute: ALU performs computation or address calculation
+    4. MEM — Memory Access: reads/writes data memory for LW and SW
+    5. WB  — Write Back: writes result back to the register file
+
+Q3. How many registers does RISC-V have? What is special about x0?
+A:  32 general-purpose registers (x0 to x31), each 32 bits wide.
+    x0 is hardwired to zero — it always reads 0 and any write to it
+    is silently ignored. This is enforced in the register file with
+    the condition: if (we && rd != 5'd0).
+
+Q4. Why does the PC increment by 4 and not by 1?
+A:  Each RISC-V RV32I instruction is exactly 32 bits = 4 bytes.
+    Memory is byte-addressed so the next instruction address is
+    always current PC + 4.
+
+Q5. What instruction types does your processor support?
+A:  Four types:
+    R-type: ADD, SUB, AND, OR, XOR, SLL, SRL, SRA, SLT
+    I-type: ADDI, ANDI, ORI, XORI, SLTI, LW
+    S-type: SW
+    B-type: BEQ, BNE
+
+
+════════════════════════════════════════════════════════════
+SECTION 2 — PIPELINE REGISTER QUESTIONS
+════════════════════════════════════════════════════════════
+
+Q6. What are pipeline registers and why do we need them?
+A:  Pipeline registers are flip-flops placed between each stage.
+    They capture the outputs of one stage at the clock edge and
+    hold them stable for the next stage to use. Without them,
+    signals would propagate through all stages simultaneously
+    and the pipeline would not work.
+
+Q7. Name all four pipeline registers in your design.
+A:  IF/ID   — between Fetch and Decode
+    ID/EX   — between Decode and Execute
+    EX/MEM  — between Execute and Memory
+    MEM/WB  — between Memory and Write-back
+
+Q8. What does the IF/ID register hold?
+A:  PC value and the 32-bit fetched instruction.
+
+Q9. What does the ID/EX register hold?
+A:  PC, read_data1 (rs1 value), read_data2 (rs2 value),
+    sign-extended immediate, rs1/rs2/rd addresses,
+    and all control signals: alu_ctrl, alu_src, mem_read,
+    mem_write, reg_write, mem_to_reg, branch.
+
+Q10. What does the EX/MEM register hold?
+A:  Branch target address, branch flag, ALU zero flag,
+    ALU result, write data (rs2 for SW), rd address,
+    and control signals: mem_read, mem_write, reg_write, mem_to_reg.
+
+Q11. What does the MEM/WB register hold?
+A:  Data read from memory (for LW), ALU result,
+    rd address, reg_write, mem_to_reg.
+
+
+════════════════════════════════════════════════════════════
+SECTION 3 — INSTRUCTION ENCODING QUESTIONS
+════════════════════════════════════════════════════════════
+
+Q12. Draw the R-type instruction format.
+A:  [31:25] funct7  — 7 bits (e.g. 0000000=ADD, 0100000=SUB)
+    [24:20] rs2     — 5 bits source register 2
+    [19:15] rs1     — 5 bits source register 1
+    [14:12] funct3  — 3 bits operation qualifier
+    [11:7]  rd      — 5 bits destination register
+    [6:0]   opcode  — 7 bits (0110011 for R-type)
+
+Q13. How does the decoder tell ADD from SUB? They have the same opcode and funct3.
+A:  Both have opcode=0110011 and funct3=000.
+    The difference is funct7 bit 5:
+    funct7[5] = 0 → ADD
+    funct7[5] = 1 → SUB
+    In Verilog: ctrl_alu_ctrl = funct7[5] ? 4'b0001 : 4'b0000
+
+Q14. What is sign extension and why is it needed for immediates?
+A:  RISC-V immediates are 12 bits but registers are 32 bits.
+    Sign extension replicates the most significant bit (bit 31)
+    into the upper 20 bits to preserve the correct signed value.
+    Without it, negative offsets like -4 would become large
+    positive numbers and memory addresses would be wrong.
+    In Verilog: {{20{instruction[31]}}, instruction[31:20]}
+
+Q15. Why does the S-type immediate split into two parts?
+A:  The rd field (bits 11:7) is used for the destination register
+    in most instruction types. In S-type (SW) there is no destination
+    register so those bits are reused for the lower 5 bits of the
+    immediate. This keeps rs1 and rs2 always in the same bit position
+    across all instruction types — simplifying the decode logic.
+
+Q16. How is the B-type immediate encoded? Why the strange bit ordering?
+A:  imm[12]    → bit 31
+    imm[10:5]  → bits 30:25
+    imm[4:1]   → bits 11:8
+    imm[11]    → bit 7
+    The strange ordering keeps most bits in the same position as
+    S-type to share hardware. Bit 0 is always 0 (instructions
+    are word-aligned so branch offset is always even).
+
+
+════════════════════════════════════════════════════════════
+SECTION 4 — HAZARD QUESTIONS (Most common interview topic)
+════════════════════════════════════════════════════════════
+
+Q17. What are the three types of data hazards?
+A:  RAW (Read After Write) — most common, instruction reads a register
+        that a previous instruction has not yet written
+    WAW (Write After Write) — two instructions write same register,
+        second write must happen last
+    WAR (Write After Read) — instruction writes a register that a
+        previous instruction still needs to read
+    In a simple in-order pipeline only RAW hazards are dangerous.
+
+Q18. What is a load-use hazard? Give an example.
+A:  A load-use hazard occurs when a LW instruction is immediately
+    followed by an instruction that uses the loaded value:
+
+    LW  x1, 0(x2)     -- x1 written at end of MEM stage
+    ADD x3, x1, x4    -- needs x1 at start of EX stage — too early!
+
+    The loaded value is not available until MEM stage completes,
+    but ADD needs it one cycle earlier in EX. This requires a
+    1-cycle stall — forwarding alone cannot solve it.
+
+Q19. How does the hazard unit detect a load-use hazard?
+A:  It checks three conditions simultaneously:
+    1. id_ex_mem_read == 1  (instruction in EX is a LOAD)
+    2. id_ex_rd != 5'd0     (it writes to a non-zero register)
+    3. id_ex_rd == if_id_rs1 OR id_ex_rd == if_id_rs2
+       (it writes to a register the next instruction reads)
+    When all three are true → stall is inserted.
+
+Q20. What exactly happens during a stall?
+A:  Three things happen simultaneously for one cycle:
+    1. pc_stall = 1    → PC freezes, same instruction fetched again
+    2. if_id_stall = 1 → IF/ID register holds its value (not updated)
+    3. id_ex_flush = 1 → ID/EX register cleared to all zeros (NOP bubble)
+    After one cycle the stall clears and forwarding delivers
+    the loaded value to the EX stage.
+
+Q21. What is a control hazard? When does it occur?
+A:  A control hazard occurs on branch instructions (BEQ, BNE).
+    The processor does not know the branch outcome until the EX stage
+    (cycle 3 of the branch). By then it has already fetched 2
+    instructions after the branch — which may be wrong instructions
+    if the branch is taken.
+
+Q22. How do you handle a taken branch?
+A:  When branch_taken signal goes high (branch & zero flag both 1):
+    1. if_id_flush = 1  → clears the instruction in IF stage (wrong fetch)
+    2. id_ex_flush = 1  → clears the instruction in ID stage (wrong fetch)
+    3. PC loads the branch target address
+    This creates a 2-cycle branch penalty when branch is taken.
+    When branch is not taken, no penalty — fetched instructions are correct.
+
+Q23. What is the priority between stall and branch flush?
+A:  Stall takes priority. The branch flush check has the condition:
+    if (branch_taken && !pc_stall)
+    This prevents branch flush from corrupting a stall in progress.
+
+
+════════════════════════════════════════════════════════════
+SECTION 5 — FORWARDING UNIT QUESTIONS
+════════════════════════════════════════════════════════════
+
+Q24. What is data forwarding (bypassing)?
+A:  Forwarding is a technique that routes a computation result
+    directly from the pipeline register where it sits to the
+    ALU input that needs it — without waiting for it to be
+    written back to the register file. This eliminates most
+    stalls for RAW hazards.
+
+Q25. How many forwarding paths does your design have?
+A:  Two forwarding paths per ALU operand (4 total):
+    EX/MEM → EX  (1 stage bypass — most recent result)
+    MEM/WB → EX  (2 stage bypass — older result)
+    Each applies independently to both operand A (rs1) and operand B (rs2).
+
+Q26. What are the fwd_a and fwd_b encoding values and what do they mean?
+A:  2'b00 → No forwarding — use register file output (no hazard)
+    2'b10 → EX/MEM bypass — instruction 1 stage ahead wrote our register
+    2'b01 → MEM/WB bypass — instruction 2 stages ahead wrote our register
+
+Q27. Why does EX/MEM bypass take priority over MEM/WB?
+A:  When two instructions both write the same register:
+    ADD x1, ...   in MEM/WB (older result)
+    SUB x1, ...   in EX/MEM (newer result)
+    AND x5, x1... in EX     (needs x1)
+    The correct x1 is SUB's result (most recent write).
+    EX/MEM holds the newer value so it must win.
+    Using else-if ensures EX/MEM is checked first.
+
+Q28. Can forwarding solve all data hazards?
+A:  No. Forwarding solves RAW hazards where the result comes from
+    an ALU operation (ADD, SUB etc.) because the result is available
+    after EX stage. However for a LOAD instruction (LW), the result
+    is not available until after MEM stage. If LW is immediately
+    followed by an instruction that uses the loaded value, the data
+    arrives one cycle too late even with forwarding — a stall is
+    unavoidable. This is the load-use hazard.
+
+Q29. What condition excludes x0 from forwarding checks?
+A:  ex_mem_rd != 5'd0 and mem_wb_rd != 5'd0
+    x0 is hardwired to zero — writing to x0 has no effect.
+    Without this check, any instruction that has x0 as its
+    destination would incorrectly trigger forwarding for every
+    subsequent instruction that reads x0.
+
+
+════════════════════════════════════════════════════════════
+SECTION 6 — ALU AND DATAPATH QUESTIONS
+════════════════════════════════════════════════════════════
+
+Q30. What operations does your ALU support?
+A:  ADD, SUB, AND, OR, XOR, SLL (shift left logical),
+    SRL (shift right logical), SRA (shift right arithmetic),
+    SLT (set less than signed), SLTU (set less than unsigned)
+
+Q31. What is the zero flag and how is it used?
+A:  The zero flag is 1 when the ALU result equals zero.
+    For BEQ: ALU performs A - B. If result is zero, A == B,
+    so branch_taken = branch_flag & zero_flag.
+
+Q32. Why does SRA use $signed(a) but SRL does not?
+A:  SRA is arithmetic right shift — it replicates the sign bit
+    (MSB) to fill vacated positions, preserving the sign of
+    negative numbers. Using $signed() tells Verilog to treat
+    the operand as signed so >>> performs sign extension.
+    SRL fills vacated positions with 0 regardless of sign.
+
+Q33. Why is b[4:0] used for shift amount instead of b[31:0]?
+A:  For a 32-bit register you only need shift amounts from 0 to 31.
+    5 bits (2^5 = 32) is sufficient. Using all 32 bits of b for
+    the shift amount would be wasteful and potentially incorrect.
+    RISC-V specification defines shift amount as bits [4:0] of rs2.
+
+Q34. What is the difference between alu_src = 0 and alu_src = 1?
+A:  alu_src = 0: ALU operand B comes from the register file (rs2)
+                 Used for R-type instructions (ADD, SUB, AND...)
+    alu_src = 1: ALU operand B comes from the sign-extended immediate
+                 Used for I-type (ADDI, LW) and S-type (SW) instructions
+
+Q35. What is mem_to_reg and when is it 1?
+A:  mem_to_reg controls the write-back MUX in the WB stage:
+    mem_to_reg = 0: write ALU result to register (ADD, ADDI result)
+    mem_to_reg = 1: write memory read data to register (LW result)
+    It is set to 1 only for LOAD instructions.
+
+
+════════════════════════════════════════════════════════════
+SECTION 7 — MEMORY QUESTIONS
+════════════════════════════════════════════════════════════
+
+Q36. Why is instruction memory read asynchronously but data memory written synchronously?
+A:  Instruction memory is a ROM — it only needs to output the instruction
+    for the current PC. Combinational (async) read means the instruction
+    is available immediately without waiting for a clock edge, which
+    is necessary for the pipeline to work correctly.
+    Data memory writes must be synchronous (on clock edge) to prevent
+    glitches and ensure writes happen at exactly the right time — only
+    when the SW instruction reaches MEM stage.
+
+Q37. How does your instruction memory load the test program?
+A:  Using the $readmemh system task:
+    $readmemh("instructions.mem", mem);
+    This reads hex values from the file into the memory array
+    at simulation start. Each line in the file is one instruction.
+
+Q38. How does your processor address memory?
+A:  Memory is word-addressed using addr[9:2] which divides the
+    byte address by 4. This gives the word index into the memory
+    array. So byte address 0x00000000 → word index 0,
+    byte address 0x00000004 → word index 1, and so on.
+
+
+════════════════════════════════════════════════════════════
+SECTION 8 — VERIFICATION AND TESTBENCH QUESTIONS
+════════════════════════════════════════════════════════════
+
+Q39. How did you verify your processor?
+A:  I wrote a self-checking testbench in Verilog that:
+    1. Generates a 100MHz clock (10ns period)
+    2. Applies synchronous reset for 3 cycles
+    3. Waits 30 cycles for program execution to complete
+    4. Uses a check_reg task to compare each register value
+       against expected values
+    5. Prints PASS or FAIL for each test case
+    6. Reports total pass/fail count at end
+    All 6 tests passed — ADDI, ADD, SW, LW, BEQ, x0=0.
+
+Q40. What test cases did you write and why?
+A:  ADDI x1 = 10  → basic I-type immediate operation
+    ADDI x2 = 20  → second operand setup
+    ADD  x3 = 30  → R-type using forwarding (x1 and x2 just written)
+    SW   mem[0]=30 → store to memory
+    LW   x4 = 30  → load from memory (tests load-use hazard handling)
+    BEQ  not taken → tests branch logic (x1 != x2 so branch not taken)
+    x0   = 0      → verifies hardwired zero register
+
+Q41. What is a self-checking testbench?
+A:  A testbench that automatically compares DUT outputs against
+    expected values and prints PASS or FAIL without requiring
+    the engineer to manually inspect waveforms. More scalable
+    and reliable than manual waveform inspection. The check_reg
+    task in our testbench uses === (identity comparison, handles
+    X and Z states) to verify register values.
+
+Q42. Why use === instead of == in simulation checks?
+A:  == treats X (unknown) and Z (high-impedance) as don't-cares
+    which can cause a comparison to pass even when the signal
+    is uninitialized. === is an identity comparison — X===X is
+    true but X===1 is false. This catches uninitialized registers
+    that would otherwise appear to pass.
+
+Q43. What is the purpose of the timeout watchdog in your testbench?
+A:  The watchdog terminates simulation if it runs beyond 10000ns.
+    This prevents infinite loops if the processor gets stuck
+    (e.g. PC not incrementing due to a bug). Without it,
+    a stuck simulation would run forever.
+
+
+════════════════════════════════════════════════════════════
+SECTION 9 — DESIGN CHOICES AND TRADEOFF QUESTIONS
+════════════════════════════════════════════════════════════
+
+Q44. Why is the register file read asynchronous but written synchronous?
+A:  Reads are asynchronous because the ID stage needs register values
+    in the same cycle they are requested — waiting a clock edge would
+    add a pipeline stage. Writes are synchronous because WB must write
+    at exactly the clock edge after the instruction completes — any
+    earlier or later could corrupt the register state.
+
+Q45. What is the CPI (Cycles Per Instruction) of your processor?
+A:  Ideal CPI is 1 — one instruction completes every cycle.
+    With load-use hazard: CPI increases by 1 cycle per LW followed
+    by dependent instruction.
+    With branch taken: CPI increases by 2 cycles per taken branch.
+    Average CPI in practice is between 1.0 and 1.5 depending on
+    the program's mix of loads and branches.
+
+Q46. What would you add to improve performance?
+A:  Branch prediction — reduces 2-cycle branch penalty to 0 on
+        correctly predicted branches
+    Multiply/Divide unit — adds M extension (RV32IM)
+    Instruction cache — removes memory access bottleneck
+    Out-of-order execution — allows independent instructions to
+        execute in parallel
+
+Q47. What is the difference between structural, data, and control hazards?
+A:  Structural hazard: two instructions need the same hardware resource
+        in the same cycle (e.g. single-port memory for both instruction
+        fetch and data access). Solved with separate instruction and data
+        memories (Harvard architecture) as used in our design.
+    Data hazard: instruction needs a result not yet written by a previous
+        instruction (RAW, WAW, WAR). Solved with forwarding and stalls.
+    Control hazard: processor does not know next instruction address
+        due to branch or jump. Solved with branch resolution and pipeline
+        flush.
+
+Q48. Why use a Harvard architecture (separate instruction and data memories)?
+A:  If a single unified memory were used, the MEM stage (data access)
+    and IF stage (instruction fetch) would conflict in the same cycle —
+    a structural hazard. Separate memories allow both to happen
+    simultaneously with no stall. This is fundamental to making
+    the 5-stage pipeline work at CPI close to 1.
+
+
+════════════════════════════════════════════════════════════
+SECTION 10 — WHITEBOARD / WRITE ON PAPER QUESTIONS
+(Interviewers ask you to write these by hand)
+════════════════════════════════════════════════════════════
+
+Q49. Write the Verilog for a D flip-flop with synchronous reset.
+A:  always @(posedge clk) begin
+        if (reset)
+            q <= 1'b0;
+        else
+            q <= d;
+    end
+
+Q50. Write the Verilog for a 2-to-1 MUX.
+A:  assign out = sel ? in1 : in0;
+
+Q51. Write the Verilog for a 4-bit synchronous counter.
+A:  always @(posedge clk) begin
+        if (reset)
+            count <= 4'b0000;
+        else
+            count <= count + 1;
+    end
+
+Q52. Write the load-use hazard detection condition in Verilog.
+A:  if (id_ex_mem_read &&
+        id_ex_rd != 5'd0 &&
+        (id_ex_rd == if_id_rs1 || id_ex_rd == if_id_rs2))
+    begin
+        stall = 1;
+    end
+
+Q53. Write the forwarding condition for EX/MEM bypass.
+A:  if (ex_mem_reg_write &&
+        ex_mem_rd != 5'd0 &&
+        ex_mem_rd == id_ex_rs1)
+        fwd_a = 2'b10;
+
+Q54. Write an ALU in 5 lines of Verilog.
+A:  always @(*) begin
+        case (alu_ctrl)
+            4'b0000: result = a + b;
+            4'b0001: result = a - b;
+            4'b0010: result = a & b;
+            4'b0011: result = a | b;
+            default: result = 32'd0;
+        endcase
+    end
+
+
+════════════════════════════════════════════════════════════
+SECTION 11 — TRICKY / ADVANCED QUESTIONS
+════════════════════════════════════════════════════════════
+
+Q55. What happens if you write to x0 in your design?
+A:  Nothing. The register file has the guard condition:
+    if (we && rd != 5'd0)
+    So the write is silently ignored and x0 remains 0.
+    This is per RISC-V specification.
+
+Q56. Your BEQ checks zero flag — what about BNE (branch if not equal)?
+A:  For BNE the branch is taken when rs1 != rs2 — meaning ALU result
+    is NOT zero. The branch taken condition would be:
+    branch_taken = branch_flag & ~zero_flag
+    In our current design only BEQ is implemented. BNE would require
+    a bne_flag control signal from decode and a separate condition.
+
+Q57. What is the difference between blocking and non-blocking assignments?
+A:  Blocking (=): executes sequentially, each assignment completes
+        before next. Used in combinational always blocks.
+    Non-blocking (<=): all right-hand sides evaluated first, then
+        all assigned simultaneously at end of time step. Used in
+        sequential (clocked) always blocks to prevent race conditions
+        in pipeline registers.
+
+Q58. Why do all pipeline registers use <= (non-blocking) assignment?
+A:  Pipeline registers must all update simultaneously at the clock
+    edge. Using blocking = could cause a value to propagate through
+    multiple registers in a single time step — a simulation bug that
+    would not exist in real hardware. Non-blocking <= ensures each
+    register captures the old value before any updates occur.
+
+Q59. What would happen if the hazard unit had a bug and never stalled?
+A:  The ADD instruction following a LW would read x1 from the
+    register file one cycle too early — getting the old stale value
+    of x1 before LW wrote the new loaded value. The ADD result
+    would be wrong. This is a silent bug — simulation runs fine
+    but produces incorrect results. The self-checking testbench
+    would catch this as a FAIL on the LW test case.
+
+Q60. What is the maximum frequency this processor can run at?
+A:  The maximum frequency is determined by the critical path —
+    the longest combinational path between two flip-flops.
+    In a RISC-V pipeline the critical path is typically through
+    the EX stage: register file read → forwarding MUX → ALU →
+    pipeline register. For a 28nm implementation this could
+    achieve 800MHz to 1GHz. In our simulation (no physical synthesis)
+    timing is not constrained — we verified functional correctness only.
+
+
+════════════════════════════════════════════════════════════
+SECTION 12 — PROJECT-SPECIFIC QUESTIONS
+(Questions about YOUR implementation specifically)
+════════════════════════════════════════════════════════════
+
+Q61. How many files are in your project? Name the key ones.
+A:  13 RTL files + 1 testbench + 1 do script + 1 instructions file:
+    alu.v, register_file.v, pc.v, instr_mem.v, data_mem.v,
+    hazard_unit.v, forwarding_unit.v, if_stage.v, id_stage.v,
+    ex_stage.v, mem_stage.v, wb_stage.v, riscv_top.v,
+    riscv_tb.v, run.do, instructions.mem
+
+Q62. What tool did you use to simulate? What version?
+A:  QuestaSim-64 version 10.4e (Compiler 2016.04)
+    Simulated on Windows. All 6 directed tests passed.
+
+Q63. What test program did you write and what does it verify?
+A:  6 instructions:
+    ADDI x1, x0, 10     → tests I-type immediate
+    ADDI x2, x0, 20     → setup second operand
+    ADD  x3, x1, x2     → tests R-type + EX/MEM forwarding
+    SW   x3, 0(x0)      → tests store to memory
+    LW   x4, 0(x0)      → tests load + load-use hazard handling
+    BEQ  x1, x2, +8     → tests branch not-taken (x1=10 != x2=20)
+
+Q64. What bugs did you find during development?
+A:  1. instructions.mem file not found — fixed by placing file in
+       correct simulation working directory
+    2. mem_stage.v had a truncated endmodule keyword (saved as
+       endmodul) — fixed by re-saving with correct Notepad settings
+    3. Library already exists warning — not a bug, vlib work is
+       safe to run multiple times
+
+Q65. If you had more time what would you add?
+A:  1. Full RV32I compliance — add JAL, JALR, LUI, AUIPC instructions
+    2. Add M extension — MUL, DIV, REM instructions
+    3. Branch predictor — 2-bit saturating counter to reduce penalty
+    4. Cache — instruction and data cache to hide memory latency
+    5. More test cases — loop programs, recursive functions, stress tests
+    6. Synthesize to FPGA using Xilinx Vivado and measure actual timing
+
+
+════════════════════════════════════════════════════════════
+  QUICK REVISION — 30-SECOND ANSWERS
+  (Read these the morning before your interview)
+════════════════════════════════════════════════════════════
+
+5 stages          → IF, ID, EX, MEM, WB
+32 registers      → x0 to x31, x0 always zero
+PC increment      → +4 because each instruction = 4 bytes
+Load-use hazard   → LW followed by dependent instruction = 1 stall
+Branch hazard     → taken branch = 2 NOPs flushed
+Forwarding values → 00=register, 10=EX/MEM bypass, 01=MEM/WB bypass
+Priority          → EX/MEM always beats MEM/WB (most recent wins)
+alu_src           → 0=use register, 1=use immediate
+mem_to_reg        → 0=write ALU result, 1=write loaded memory value
+Non-blocking <=   → used in all pipeline registers (clocked)
+Blocking =        → used in all combinational always blocks
+Test result       → 6 PASSED, 0 FAILED on QuestaSim 10.4e
+
+
+============================================================
+  END OF INTERVIEW QUESTION BANK
+  Total Questions: 65
+  Prepared by: Claude for Saravana Kumar T J A
+  Project: 32-bit RISC-V RV32I Pipelined Processor
+============================================================
