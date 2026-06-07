@@ -1,4 +1,4 @@
-# 32-bit RISC-V Processor Core (RV32I)
+# 32-bit RISC-V Processor Core (RV32)
 
 **Author:** Saravana Kumar T J A
 **Role:** Design & Verification Engineer — Semiconductor
