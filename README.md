@@ -305,6 +305,10 @@ Non-blocking (<=):   all pipeline registers use <=
                      prevents race conditions between stages
 ```
 
+<img width="1875" height="590" alt="image" src="https://github.com/user-attachments/assets/314abca4-3d9c-4e92-ad40-765bf27c9f73" />
+
+<img width="1697" height="707" alt="image" src="https://github.com/user-attachments/assets/fcefefc9-d79c-431c-b27f-073a9654c588" />
+
 ---
 
 *Saravana Kumar T J A — Design & Verification Engineer*
