@@ -16,13 +16,13 @@ A fully functional **32-bit RISC-V RV32I pipelined processor core** designed in 
 
 ## Processor Specification
 
-| Parameter          | Value                              |
+| Parameter         | Value                              |
 |-------------------|------------------------------------|
 | ISA               | RISC-V RV32I (Base Integer)        |
-| Pipeline stages   | 5 — IF, ID, EX, MEM, WB           |
+| Pipeline stages   | 5 — IF, ID, EX, MEM, WB            |
 | Registers         | 32 × 32-bit (x0 hardwired zero)    |
 | Data width        | 32-bit                             |
-| Instruction types | R, I, S, B                        |
+| Instruction types | R, I, S, B                         |
 | Hazard handling   | Forwarding + Stall + Flush         |
 | Memory            | Harvard (separate instr + data)    |
 | Reset             | Synchronous active HIGH            |
@@ -32,11 +32,11 @@ A fully functional **32-bit RISC-V RV32I pipelined processor core** designed in 
 
 ## Supported Instructions
 
-| Type   | Instructions                                    |
-|--------|-------------------------------------------------|
+| Type   | Instructions                                   |
+|--------|------------------------------------------------|
 | R-type | ADD, SUB, AND, OR, XOR, SLL, SRL, SRA, SLT     |
 | I-type | ADDI, ANDI, ORI, XORI, SLTI, LW                |
-| S-type | SW                                              |
+| S-type | SW                                             |
 | B-type | BEQ, BNE                                       |
 
 ---
@@ -49,7 +49,7 @@ Clock ──►│  IF  │──►│  ID  │──►│  EX  │──►�
          └──────┘   └──────┘   └──────┘   └──────┘   └──────┘
             │    IF/ID   │   ID/EX  │  EX/MEM │  MEM/WB  │
             │   ┌─────┐  │  ┌─────┐ │  ┌─────┐│  ┌─────┐ │
-            └──►│ REG │──┘  │ REG │ └─►│ REG ││  │ REG │ └──►
+            └──►│ REG │──┘  │ REG │ └─►│ REG ││  │ REG │ └──►  OUTPUT
                 └─────┘     └─────┘    └─────┘└─►└─────┘
                                            ▲
                                     ┌──────┴──────┐
@@ -60,13 +60,13 @@ Clock ──►│  IF  │──►│  ID  │──►│  EX  │──►�
 
 ### What Each Stage Does
 
-| Stage | Full Name          | Function                                              |
-|-------|--------------------|-------------------------------------------------------|
-| IF    | Instruction Fetch  | Read instruction from ROM using PC                   |
+| Stage | Full Name          | Function                                                |
+|-------|--------------------|---------------------------------------------------------|
+| IF    | Instruction Fetch  | Read instruction from ROM using PC                      |
 | ID    | Instruction Decode | Decode opcode, read registers, generate control signals |
-| EX    | Execute            | ALU computes result or memory address                |
-| MEM   | Memory Access      | Read/write data memory for LW/SW                     |
-| WB    | Write Back         | Write result back to register file                   |
+| EX    | Execute            | ALU computes result or memory address                   |
+| MEM   | Memory Access      | Read/write data memory for LW/SW                        |
+| WB    | Write Back         | Write result back to register file                      |
 
 ---
 
@@ -197,22 +197,22 @@ File: sim/instructions.mem
 ===========================================
 [0] Reset released — processor running
 
-Cycle | PC       | Instruction | x1  | x2  | x3  | x4
-------|----------|-------------|-----|-----|-----|----
-    1 | 00000000 | 00000000    |   0 |   0 |   0 |   0
-    2 | 00000000 | 00a00093    |   0 |   0 |   0 |   0
-    3 | 00000004 | 01400113    |  10 |   0 |   0 |   0
-    4 | 00000008 | 002081b3    |  10 |  20 |   0 |   0
-    5 | 0000000c | 00302023    |  10 |  20 |  30 |   0
-    6 | 00000010 | 00002203    |  10 |  20 |  30 |   0
+Cycle | PC       | Instruction | x1  | x2  | x3  | x4   |
+------|----------|-------------|-----|-----|-----|------|
+    1 | 00000000 | 00000000    |   0 |   0 |   0 |   0  |
+    2 | 00000000 | 00a00093    |   0 |   0 |   0 |   0  |
+    3 | 00000004 | 01400113    |  10 |   0 |   0 |   0  |
+    4 | 00000008 | 002081b3    |  10 |  20 |   0 |   0  |
+    5 | 0000000c | 00302023    |  10 |  20 |  30 |   0  |
+    6 | 00000010 | 00002203    |  10 |  20 |  30 |   0  |
 
 --- Register Checks ---
-PASS | ADDI_x1  | x1 = 10  (expected 10)
-PASS | ADDI_x2  | x2 = 20  (expected 20)
-PASS | ADD_x3   | x3 = 30  (expected 30)
-PASS | LW_x4    | x4 = 30  (expected 30)
-PASS | ADDI_x6  | x6 = 1   (expected 1)
-PASS | x0_zero  | x0 = 0   (expected 0)
+PASS | ADDI_x1  | x1 = 10  (expected 10)  |
+PASS | ADDI_x2  | x2 = 20  (expected 20)  |
+PASS | ADD_x3   | x3 = 30  (expected 30)  |
+PASS | LW_x4    | x4 = 30  (expected 30)  |
+PASS | ADDI_x6  | x6 = 1   (expected 1)   |
+PASS | x0_zero  | x0 = 0   (expected 0)   |
 
 ===========================================
  Results: 6 PASSED | 0 FAILED
@@ -222,40 +222,8 @@ PASS | x0_zero  | x0 = 0   (expected 0)
 
 ---
 
-## How to Simulate
-
-```tcl
--- Step 1: Open QuestaSim
--- Step 2: In transcript window:
-
-cd C:/VLSI_Projects/riscv_core/sim
-do run.do
-
--- Expected: 6 PASSED | 0 FAILED
-```
-
----
-
 ## RTL Code Highlights
 
-### ALU — 10 Operations
-
-```verilog
-always @(*) begin
-    case (alu_ctrl)
-        4'b0000: result = a + b;              // ADD
-        4'b0001: result = a - b;              // SUB
-        4'b0010: result = a & b;              // AND
-        4'b0011: result = a | b;              // OR
-        4'b0100: result = a ^ b;              // XOR
-        4'b0101: result = a << b[4:0];        // SLL
-        4'b0110: result = a >> b[4:0];        // SRL
-        4'b0111: result = $signed(a) >>> b[4:0]; // SRA
-        4'b1000: result = ($signed(a) < $signed(b)) ? 1 : 0; // SLT
-        default: result = 32'd0;
-    endcase
-end
-assign zero = (result == 32'd0); // used for BEQ
 ```
 
 ### Forwarding MUX
@@ -282,27 +250,6 @@ begin
     id_ex_flush = 1;  // insert NOP bubble
 end
 ```
-
----
-
-## Key Concepts for Interview
-
-```
-5 pipeline stages:   IF → ID → EX → MEM → WB
-32 registers:        x0 always zero, x1-x31 general purpose
-PC increment:        +4 (each instruction = 4 bytes)
-Load-use hazard:     LW followed by dependent instruction
-                     → 1 stall cycle, hazard unit detects
-Branch hazard:       taken branch → 2 NOPs flushed
-Forwarding:          fwd=00 regfile | 10 EX/MEM | 01 MEM/WB
-EX/MEM priority:     most recent write wins over MEM/WB
-zero flag:           ALU result=0 → BEQ branch taken
-mem_to_reg:          0=ALU result | 1=memory data (LW)
-alu_src:             0=register | 1=immediate
-Harvard arch:        separate instruction and data memories
-                     prevents structural hazard in MEM+IF
-Non-blocking (<=):   all pipeline registers use <=
-                     prevents race conditions between stages
 ```
 
 <img width="1875" height="590" alt="image" src="https://github.com/user-attachments/assets/314abca4-3d9c-4e92-ad40-765bf27c9f73" />
