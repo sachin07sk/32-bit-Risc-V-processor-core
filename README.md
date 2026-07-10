@@ -252,9 +252,9 @@ end
 ```
 ```
 
-<img width="1875" height="590" alt="image" src="https://github.com/user-attachments/assets/314abca4-3d9c-4e92-ad40-765bf27c9f73" />
+<img width="1875" height="590" alt="Screenshot 2026-06-22 075403" src="https://github.com/user-attachments/assets/434ca295-730d-4d98-a27b-79be8d88caee" />
+<img width="1875" height="590" alt="Screenshot 2026-06-22 075403" src="https://github.com/user-attachments/assets/bbf8f6e4-e327-45ec-8a18-781782a5fcac" />
 
-<img width="1697" height="707" alt="image" src="https://github.com/user-attachments/assets/fcefefc9-d79c-431c-b27f-073a9654c588" />
 
 ---
 
