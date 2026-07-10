@@ -251,10 +251,10 @@ begin
 end
 ```
 ```
-OUTPUT Waveform
+**### OUTPUT Waveform**
 --------
 
-<img width="1875" height="590" alt="Screenshot 2026-06-22 075403" src="https://github.com/user-attachments/assets/434ca295-730d-4d98-a27b-79be8d88caee" />
+**<img width="1875" height="590" alt="Screenshot 2026-06-22 075403" src="https://github.com/user-attachments/assets/434ca295-730d-4d98-a27b-79be8d88caee" />**
 <img width="1875" height="590" alt="Screenshot 2026-06-22 075403" src="https://github.com/user-attachments/assets/bbf8f6e4-e327-45ec-8a18-781782a5fcac" />
 
 
