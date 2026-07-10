@@ -251,7 +251,7 @@ begin
 end
 ```
 ```
-**### OUTPUT Waveform**
+### OUTPUT Waveform
 ```
 
 
