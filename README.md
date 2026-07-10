@@ -250,9 +250,7 @@ begin
     id_ex_flush = 1;  // insert NOP bubble
 end
 ```
-```
-### OUTPUT Waveform
-```
+
 
 
 ---
